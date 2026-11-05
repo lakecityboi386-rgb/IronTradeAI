@@ -44,10 +44,15 @@ test("office renders eight workstations; sections and safe paper preview work", 
     .getByRole("button", { name: "Live Trading", exact: false })
     .click();
   await expect(
-    page.getByText("ACTIVATION LOCKED", { exact: true }),
+    page.getByRole("heading", {
+      name: "Link your personal account",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Live trading unavailable" }),
+    page.getByRole("button", {
+      name: "Enable individually approved live orders",
+    }),
   ).toBeDisabled();
   expect(errors).toEqual([]);
 });
@@ -117,4 +122,143 @@ test("research comparison displays holdout evidence without promotion controls",
     page.getByText("Research comparison only. No promotion.", { exact: false }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /promote/i })).toHaveCount(0);
+});
+
+test("manual trades receive team review and bot approval policy persists", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByText("LOCAL ENGINE CONNECTED", { exact: false }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Manual Trading", exact: false })
+    .click();
+  await page.getByRole("button", { name: "Preview paper buy" }).click();
+  await page.getByText("Team review (8 specialists)", { exact: true }).click();
+  await expect(page.locator(".team-reviews .review")).toHaveCount(8);
+  await expect(
+    page.getByText("Your ticket · reviewed by the team"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("mandatory risk gate", { exact: false }),
+  ).toBeVisible();
+  const reject = page.getByRole("button", { name: "Reject", exact: true });
+  if (await reject.count()) await reject.click();
+  await page
+    .getByRole("button", { name: "Paper Trading", exact: false })
+    .click();
+  const policy = page.getByLabel("Bot entry approval policy");
+  await expect(policy).toHaveValue("human");
+  await policy.selectOption("automatic_paper");
+  await expect(policy).toBeEnabled();
+  await expect(policy).toHaveValue("automatic_paper");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Paper Trading", exact: false })
+    .click();
+  await expect(page.getByLabel("Bot entry approval policy")).toHaveValue(
+    "automatic_paper",
+  );
+  await page.getByLabel("Bot entry approval policy").selectOption("human");
+  await expect(page.getByLabel("Bot entry approval policy")).toBeEnabled();
+  await expect(page.getByLabel("Bot entry approval policy")).toHaveValue(
+    "human",
+  );
+});
+
+test("live tickets cannot be silently converted to paper", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const state = await (await fetch("/api/state")).json();
+    const r = await fetch("/api/propose", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Nightshift-Token": state.token,
+      },
+      body: JSON.stringify({ mode: "live", product: "BTC-USD", amount: "5" }),
+    });
+    return { status: r.status, body: await r.json() };
+  });
+  expect(result.status).toBe(400);
+  expect(result.body.error).toContain("Live orders are locked");
+});
+
+test("cloud account linking never accepts a private key", async ({ page }) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Live Trading", exact: false })
+    .click();
+  await expect(page.getByLabel("Coinbase key JSON export")).toBeDisabled();
+  await expect(
+    page.getByRole("button", {
+      name: "Enable individually approved live orders",
+    }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Account linking is unavailable in this Linux/cloud browser.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+});
+
+test("mock live order requires exact final confirmation and submits only once", async ({
+  page,
+}) => {
+  let submissions = 0;
+  const baseline = await (await page.request.get("/api/state")).json();
+  // All live account and order operations in this test are explicit browser mocks.
+  await page.route("**/api/state", async (route) => {
+    const state = structuredClone(baseline);
+    state.coinbase_connection = {
+      connected: true,
+      secure_storage_available: true,
+      saved: true,
+    };
+    state.live = {
+      enabled: true,
+      cash: "25",
+      positions: [],
+      orders: [],
+      unknown_execution: false,
+    };
+    await route.fulfill({ json: state });
+  });
+  await page.route("**/api/live/preview", (route) =>
+    route.fulfill({
+      json: {
+        id: "fixture",
+        product: "BTC-USD",
+        side: "buy",
+        amount: "5",
+        approval_token: "nonfunctional-fixture",
+        confirmation: "BUY BTC-USD 5",
+        preview: { estimated_fee: ".03", requested: { quote_size: "4.90" } },
+      },
+    }),
+  );
+  await page.route("**/api/live/approve", async (route) => {
+    submissions++;
+    await route.fulfill({ json: { enabled: true } });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Live Trading", exact: false })
+    .click();
+  await page.getByRole("button", { name: "Get Coinbase buy preview" }).click();
+  const submit = page.getByRole("button", {
+    name: "Submit this live order once",
+  });
+  await expect(submit).toBeDisabled();
+  await page.getByLabel("Individual live order confirmation").fill("yes");
+  await expect(submit).toBeDisabled();
+  expect(submissions).toBe(0);
+  await page
+    .getByLabel("Individual live order confirmation")
+    .fill("BUY BTC-USD 5");
+  await submit.click();
+  await expect(submit).toHaveCount(0);
+  expect(submissions).toBe(1);
 });

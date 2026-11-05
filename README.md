@@ -1,83 +1,111 @@
 # IronTrade AI — NightShift
 
-Runnable milestone build: a React / Three.js trading office, eight selectable animated seated traders, a Tauri v2 Windows shell, and a local Python / SQLite paper engine. **This is an initial implementation, not a production trading application. Live orders are locked and no submission route exists.**
+React / Three.js office, eight selectable animated seated agents, a Tauri v2 Windows shell, and Python / SQLite trading services. Paper trading and human-approved Coinbase execution use separate ledgers. **This remains a development build: the Windows installer, native credential storage and authenticated broker integration have not been verified on a Windows machine. Do not treat mocked tests as verification of real-money execution.**
 
-## Run in development
+## Run the development application
 
-Requirements: Node 22+, Python 3.12+. No paid AI service or API key is required.
+Requirements: Node 22+ and Python 3.12+.
 
 ```sh
 npm ci
-# Terminal 1 (from the repository root)
+# Terminal 1, from the repository root:
 python -m engine.server
-# Terminal 2
+# Terminal 2:
 npm run dev
 ```
 
-Open the Vite development application on port 1420. The engine binds only to 127.0.0.1:8765. In a restricted cloud environment use its supported network permissions for installation and server startup. `IRONTRADE_DATA_DIR` chooses the SQLite directory; default is `~/.irontrade`. Never share this directory between paper test runs and personal trading history. The browser connects through Vite's `/api` proxy; the installed desktop uses the loopback engine directly.
-
-For a writable cloud data directory:
+For writable cloud storage:
 
 ```sh
 IRONTRADE_DATA_DIR=/workspace/IronTradeAI/.runtime python -m engine.server
 ```
 
-The initial screen renders the office immediately. Orbit with drag, zoom with the mouse wheel, and click a person or desk to inspect an agent. All office assets are original procedural geometry. Monitor bars are illustrative office graphics, **not market charts**. Actual charts in Live Markets appear only after verified Coinbase candles arrive.
+Both services bind to loopback only: frontend 127.0.0.1:1420 and engine 127.0.0.1:8765. They are not public network listeners. Paper functionality needs no API key, paid AI service, or Python third-party package. `IRONTRADE_DATA_DIR` selects the data directory; otherwise it defaults to `~/.irontrade`. Use the environment's supported network permissions for installation and service startup.
 
-## Paper workflow
+Orbit the office by dragging, zoom with the wheel, and select a person or desk. All office assets are original procedural geometry. Office monitor bars are illustrative, not market charts. Live Markets charts use actual Coinbase candles only.
 
-Starting cash is $25. Each entry spends at most $5 including an estimated 0.6% fee. There can be at most five open positions. Quotes must be under 90 seconds old and spread at most 0.5%. Trades use the quoted ask/bid plus 5 bps slippage per side. Fees are simulation assumptions, not the user's actual Coinbase fee tier.
+## Private Coinbase account linking
 
-Use Manual Trading to preview a paper buy, inspect checks, then confirm. Paper Trading lists owned positions and full-position sell previews. The emergency switch blocks new entries; it does not liquidate positions. Manual exits still need a fresh quote. Duplicate confirmations cannot fill twice, and a transaction/lock rechecks capital and risk at execution.
+Open **Live Trading → Link your personal account** in the Windows desktop application.
 
-Start paper agents explicitly in Paper Trading. The worker refreshes quotes every 30 seconds. Four versioned strategies originate distinct signals: Market Scout uses six-bar return with trend confirmation; Technical Analyst uses EMA/MACD/RSI agreement; Momentum Maverick requires a 20-close breakout; Mean Reversion Quant requires oversold conditions and a recovery. Liquidity Analyst abstains until order-book depth evidence is available. Wallet Tracker abstains without a verified on-chain source. Risk Officer independently checks all entries; Execution Specialist has no live routing. These eight roles are not yet eight independent validated strategies. Agents do not claim calibrated confidence or profitability. Daily realized losses plus current unrealized losses of $0.50 block new entries. Existing positions require fresh marks before any new entry. Paper stops (2% below simulated entry) and targets (4% above) are monitored each market refresh; gaps, fees, stale data and spread constraints can prevent or delay fills. The kill switch allows these owned protective exits.
+1. Create a Coinbase CDP API key for Advanced Trade. Use the SDK-supported ECDSA format, View and Trade permissions, and **no Transfer permission**. The app rejects transfer-enabled keys.
+2. Download the JSON key export. Keep it outside the repository and protect/remove the original export after importing it. The app cannot remove a file selected in a browser file picker.
+3. Import the export with the app's file selector. The app verifies account access with read-only requests before saving anything.
+4. Windows DPAPI encrypts the key for the signed-in Windows user. No plaintext credential file, browser storage, source-code insertion, or credential logging is used. The key exists in process memory when signing requests. Other programs running as your user can still pose a risk.
+5. Linking does not activate trading. Type `ENABLE LIVE TRADING` in the activation field only when deliberately choosing live operation. Activation resets on engine restart.
 
-Paper decisions persist indicators, source market conditions, reasoning, strategy version, checks, fees, and fills in SQLite. Performance currently reports net realized P/L, win rate, average P/L, and profit factor. A chronological 70/30 training/holdout evaluation and training-only RSI signal attribution are available in the engine state. Equal timestamps are kept on one side of the boundary; no challenger or automatic strategy promotion is enabled. Wilson win-rate intervals are descriptive, not claims of profitability.
+**Do not paste keys into chat.** Import is disabled in Linux/cloud browsers because Windows user-bound secure storage is unavailable. No insecure storage fallback exists. Unlinking removes the encrypted key and disables live submission; it does not cancel orders already sent to Coinbase.
 
-## Market data
+For Windows development, install the official SDK into the Python environment running the engine:
 
-Only public `api.exchange.coinbase.com` REST endpoints are used, for BTC-USD, ETH-USD and SOL-USD. This is Coinbase **Exchange public market data**, not authenticated Advanced Trade connectivity. Failed/stale feeds are labelled unavailable and cannot authorize entries. No fallback fabricated prices are used. Exchange quotes and completed/recent candles are timestamp-checked. Network policy must permit that hostname; a saved environment draft alone does not apply it.
+```powershell
+python -m pip install -r requirements-coinbase.txt
+```
 
-## Tests
+The Windows packaging workflow installs and bundles the SDK. Account linking uses `api.coinbase.com`; public market data uses `api.exchange.coinbase.com`. Both hosts must be reachable. No real credentials are configured in the development environment.
+
+## Trade alongside the agents
+
+Manual and bot proposals share team review. Each paper proposal includes eight evidence-based reviews. Risk Officer checks are mandatory; the other opinions are advisory and may disagree. The default policy requires your confirmation before bot paper entries. Paper Trading has a separate explicit option for automatic risk-approved paper entries. Manual tickets always require confirmation.
+
+Starting paper agents starts scanning, not live trading. Four versioned speculative strategies are implemented: Market Scout, Technical Analyst, Momentum Maverick and Mean Reversion Quant. Wallet Tracker abstains without verified on-chain evidence; Liquidity Analyst abstains without order-book depth. Risk and execution roles do not originate speculative signals. These rules have tests, not demonstrated profitability.
+
+After deliberate live activation, the Live Trading panel can create a broker preview for a manual ticket or a pending bot entry proposal. Inspect it and type the exact order confirmation phrase. Each preview has a one-use approval token and expires after 30 seconds. **A bot cannot approve a live order on your behalf.**
+
+## Execution safeguards
+
+- Portfolio-bound, separate paper and live SQLite files; live capital is a tracked $25 allocation, not your full Coinbase balance.
+- Spot USD markets only: BTC-USD, ETH-USD and SOL-USD. No leverage or futures.
+- Maximum live entry budget $5 including estimated fees; maximum allocation $25; maximum five positions/reservations.
+- Fresh quotes, maximum 0.5% spread, product tradability, minimum/maximum sizes and increments, available account balances, and mandatory preview validation.
+- A conservative 2% daily realized-loss-plus-unrealized-loss entry cutoff and emergency entry stop. Realized gains do not offset realized losses in this gate. All held assets require fresh marks before another entry.
+- Balances, product status, sizing and estimated fees are refreshed before submission. Changed sizing or fees require new approval. Preview buys reserve fee headroom. Actual broker fees/fills can differ; unexpected cost overruns disable submission for inspection.
+- Durable intent and a unique client order ID are committed **before** network submission. Consumed approvals cannot submit twice.
+- Timeouts and ambiguous responses remain `UNKNOWN`, retain allocation reservations and block entries. No blind submission retry exists. Reconciliation searches by the original client order ID if no broker order ID was received.
+- Partial fills apply cumulative size, value and fees incrementally and idempotently. Partial fills remain owned positions when an order is cancelled.
+- Explicit cancellation requests retain reservations until broker reconciliation. A cancellation request does not guarantee the order cannot fill.
+- Reconciliation continues after deactivation and the entry kill switch. Disconnection prevents broker operations until the account is linked again.
+- Protective live levels generate alerts, **not automatic orders**. Exits need their own preview and human confirmation. Paper protective exits can execute automatically. Stop/reference levels cannot guarantee a maximum loss.
+
+The ledger stores a hashed portfolio binding and refuses cross-portfolio key changes or approval reuse. The execution journal exposes order state and reconciliation controls. It never exposes credentials. Broker exception text is not returned to the UI or logs.
+
+## Paper and research
+
+Paper starting cash is $25, with maximum $5 entries and five positions. Simulations use quoted bid/ask, 0.6% fees and 5 bps slippage per side. These are assumptions, not your broker fee tier. Paper stop/target monitoring runs at refresh time and can be delayed by stale data or market gaps. The entry kill switch does not liquidate positions.
+
+Public quotes and up to 300 five-minute candles come from Coinbase Exchange REST. Failed or stale feeds are labelled unavailable; no fallback fabricated market prices authorize trades. Historical monitor graphics and test fixtures are not live data.
+
+The Bot Leaderboard compares fixed champion/challenger rules using a chronological 70/30 split, next-observation fills, fees and slippage. Training and holdout remain separate. Short samples or zero trades are insufficient evidence. No automatic strategy promotion is implemented, and research cannot disable risk controls.
+
+## Validation
 
 ```sh
 python -m unittest discover -s tests -v
 npm run build
-# With the engine and Vite already running; Linux system Chromium is the default:
-npx playwright test
+# With engine and Vite already running; defaults to system Chromium on Linux:
+npm run test:browser
 ```
 
-Set `CHROMIUM_PATH` for another installed Chromium executable. Browser tests render the office, visit agent and manual trading screens, verify live activation is locked, and test persistence of the kill switch. Screenshots go to `test-results/`. Engine tests use explicit fixture quotes; they never contact a broker or submit a real order.
+Set `CHROMIUM_PATH` for another installed browser. All broker execution tests use mocks; browser live-order tests intercept account/order routes. They never send real orders. Two native DPAPI tests are skipped on Linux and run on the Windows CI runner. Screenshots are saved in ignored `test-results/`.
 
 ## Windows packaging
 
-`.github/workflows/windows.yml` installs Rust, builds a Python sidecar using PyInstaller, compiles Tauri, and uploads an unsigned NSIS installer. Run it on GitHub Actions after pushing the committed code, or trigger workflow_dispatch. This Linux workspace has no Rust/native Windows runtime; **the Windows installer has not been built or tested here**.
+`.github/workflows/windows.yml` runs native Windows tests, installs the SDK, bundles the Python engine with PyInstaller, builds Tauri and uploads an unsigned NSIS installer. It has **not** been executed or verified from this Linux workspace. Push the committed code and run the workflow, then verify the installed application on Windows before using credentials or funds.
 
-For a local Windows build, install the Tauri v2 Windows prerequisites (Rust MSVC, Microsoft C++ build tools, WebView2), Python 3.12, and Node. Then from PowerShell:
+Windows prerequisites: Node, Python, Rust MSVC, Microsoft C++ build tools and WebView2. Local PowerShell packaging commands:
 
 ```powershell
 npm ci
-python -m pip install pyinstaller==6.16.0
-python -m PyInstaller --onefile --name nightshift-engine --paths . --hidden-import engine.server --hidden-import engine.core engine/launcher.py
+python -m pip install pyinstaller==6.16.0 -r requirements-coinbase.txt
+python -m unittest discover -s tests -v
+python -m PyInstaller --onefile --name nightshift-engine --paths . --hidden-import engine.server --hidden-import engine.core --hidden-import coinbase.rest engine/launcher.py
 New-Item -ItemType Directory -Force src-tauri/binaries
 Copy-Item dist/nightshift-engine.exe src-tauri/binaries/nightshift-engine-x86_64-pc-windows-msvc.exe
 npm run tauri -- build --target x86_64-pc-windows-msvc
 ```
 
-The release shell starts the bundled sidecar and stops that child process when the app exits. Development uses the separately started Python service. The current fixed engine port permits only one instance. Installer launch, bundled engine discovery, data persistence after upgrade, WebView rendering, and process cleanup require native Windows verification before distribution.
+Release launches and stops its bundled engine child. Live activation does not survive restart. Verify engine discovery, DPAPI storage, import/unlink, installer upgrades, reconciliation and process cleanup on Windows. The fixed engine port currently supports one instance. Do not run the desktop with elevated administrator privileges.
 
-## Remaining milestones
+## Remaining work
 
-- Production character assets, walking/sitting transitions, group discussion gestures, market reactions, a richer Manhattan skyline and executive-office navigation.
-- Verified wallet evidence, depth/volume models, role-specific risk/execution research, true inter-agent debates and calibrated confidence. The four speculative strategies have unit tests but no demonstrated out-of-sample profitability.
-- Higher-frequency protective exit monitoring and more complete intraday equity sampling; the current engine records fresh mark-to-market equity at market refresh and derives sampled maximum drawdown.
-- Longer-history walk-forward evaluation, independently collected forward-paper evidence, and a reviewed promotion policy. The Leaderboard now offers fixed champion/challenger replay on a chronological 70/30 split, with next-observation fills and explicit costs; automatic promotion remains disabled.
-- Coinbase Advanced Trade authentication with OS-protected credentials, balance/product/size checks, previews, per-order approval, idempotency, reconciliation, unknown status and partial-fill handling. No credentials are collected in this build.
-- Ollama chat integration; current questions return the agent's actual indicator explanation, not generated AI conversation.
-- Successful Windows CI build and native installer smoke tests. CI configuration is not evidence of a passing Windows build.
-
-Never enable real capital on the strength of a small number of paper wins. Stop prices cannot guarantee maximum realized loss. Do not submit real orders during development or testing.
-
-## Strategy research
-
-The Bot Leaderboard includes a champion/challenger panel for the four speculative agents. The engine fetches up to 300 actual five-minute candles, sorts chronologically, reserves the final 30% as holdout, and replays each fixed parameter set independently. Signals use only observations available at that point; fills use the next observation. Historical spread/slippage are assumptions, not measured past order books. A short history can yield zero trades, which is insufficient evidence, not a passing strategy. Research never modifies execution parameters or disables risk gates. No promotion button or execution endpoint exists.
+Production character assets, walking/discussion animation, richer office navigation, verified wallet/depth evidence, longer independent forward strategy validation, Ollama conversation, and native Windows/real authenticated broker verification remain outstanding. No real orders may be submitted during development or testing. Mocked safeguard tests do not establish production readiness or profitability.

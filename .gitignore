@@ -12,3 +12,7 @@ test-results/
 src-tauri/binaries/
 *.spec
 build/
+*.dpapi
+.coinbase-*
+cdp_api_key.json
+coinbase_cloud_api_key.json

@@ -1,0 +1,2 @@
+# Optional authenticated inspection/preview adapter. Live submission remains locked.
+coinbase-advanced-py==1.8.2

@@ -577,3 +577,29 @@ code {
     top: 15px;
   }
 }
+.team-reviews {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #314252;
+  border-radius: 6px;
+}
+.team-reviews summary {
+  cursor: pointer;
+  color: #cbb782;
+  font-size: 12px;
+}
+.review {
+  padding-top: 16px;
+  margin-top: 12px;
+  border-top: 1px solid #263744;
+}
+.review b {
+  font-size: 12px;
+}
+.review span {
+  font-size: 10px;
+}
+.review p {
+  margin: 8px 0;
+  font-size: 11px;
+}

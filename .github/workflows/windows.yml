@@ -22,11 +22,11 @@ jobs:
       - run: npm ci
       - run: python -m unittest discover -s tests -v
       - run: npm run build
-      - run: python -m pip install pyinstaller==6.16.0
-      - name: Bundle local paper engine
+      - run: python -m pip install pyinstaller==6.16.0 -r requirements-coinbase.txt
+      - name: Bundle local trading engine
         shell: pwsh
         run: |
-          python -m PyInstaller --onefile --name nightshift-engine --paths . --hidden-import engine.server --hidden-import engine.core engine/launcher.py
+          python -m PyInstaller --onefile --name nightshift-engine --paths . --hidden-import engine.server --hidden-import engine.core --hidden-import coinbase.rest engine/launcher.py
           New-Item -ItemType Directory -Force src-tauri/binaries
           Copy-Item dist/nightshift-engine.exe src-tauri/binaries/nightshift-engine-x86_64-pc-windows-msvc.exe
       - name: Build Windows NSIS installer

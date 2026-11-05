@@ -1,4 +1,5 @@
 import { useEffect, useState, Component, ReactNode } from "react";
+import CoinbasePanel from "./CoinbasePanel";
 import Office, { names, colors } from "./Office";
 type Check = { name: string; passed: boolean };
 type Proposal = {
@@ -8,10 +9,21 @@ type Proposal = {
   product: string;
   side: string;
   amount: string;
+  estimated_notional?: string | null;
+  amount_unit?: string;
   entry: number | null;
   stop: number | null;
   target: number | null;
   estimated_fee: string | null;
+  origin?: string;
+  requested_by?: string;
+  team_reviews?: {
+    bot: string;
+    opinion: string;
+    reason: string;
+    binding: boolean;
+  }[];
+  decision?: { actor: string; approved: boolean; time: number };
   checks: Check[];
   reasoning: string;
   status: string;
@@ -48,10 +60,31 @@ type Event = {
   reasoning: string;
 };
 type State = {
+  coinbase_connection?: {
+    connected: boolean;
+    secure_storage_available: boolean;
+    saved: boolean;
+  };
+  live?: {
+    enabled: boolean;
+    cash: string;
+    positions: { product: string; qty: string; cost: string }[];
+    orders: {
+      id: string;
+      product: string;
+      side: string;
+      status: string;
+      amount: string;
+      filled_qty: string;
+      requested_by: string;
+    }[];
+    unknown_execution: boolean;
+  };
   token: string;
   cash: string;
   kill: boolean;
   auto: boolean;
+  approval_policy: "human" | "automatic_paper";
   markets: Record<string, Market>;
   market_error: string;
   positions: Position[];
@@ -217,10 +250,15 @@ export default function App() {
         <span className="muted">{p.status}</span>
       </div>
       <h3>
-        {p.product} <span>{money(p.amount)}</span>
+        {p.product}{" "}
+        <span>
+          {money(p.side === "sell" ? p.estimated_notional : p.amount)}
+        </span>
       </h3>
       <p>
         {p.bot} · {p.strategy_version}
+        {p.side === "sell" &&
+          ` · ${Number(p.amount).toPrecision(6)} ${p.amount_unit || "units"}`}
       </p>
       <div className="numbers">
         <span>
@@ -238,6 +276,35 @@ export default function App() {
       </div>
       <p>{p.reasoning}</p>
       <small>Confidence: uncalibrated · no profitability claim</small>
+      <p>
+        {p.origin === "manual"
+          ? "Your ticket · reviewed by the team"
+          : "Agent proposal · your approval is required in approval mode"}
+      </p>
+      {p.team_reviews && (
+        <details className="team-reviews">
+          <summary>Team review ({p.team_reviews.length} specialists)</summary>
+          {p.team_reviews.map((review) => (
+            <div className="review" key={review.bot}>
+              <div className="row">
+                <b>{review.bot}</b>
+                <span className={review.opinion === "block" ? "fail" : "muted"}>
+                  {review.opinion}
+                  {review.binding ? " · mandatory risk gate" : " · advisory"}
+                </span>
+              </div>
+              <p>{review.reason}</p>
+            </div>
+          ))}
+        </details>
+      )}
+      {p.decision && (
+        <p>
+          Decision: {p.decision.approved ? "approved" : "rejected"} by{" "}
+          {p.decision.actor.replaceAll("_", " ")} ·{" "}
+          {new Date(p.decision.time * 1000).toLocaleString()}
+        </p>
+      )}
       <div className="checks">
         {p.checks.map((c) => (
           <div key={c.name} className={c.passed ? "pass" : "fail"}>
@@ -330,7 +397,11 @@ export default function App() {
             <h1>{section}</h1>
           </div>
           <div className="header-actions">
-            <span className="pill">PAPER MODE</span>
+            <span className="pill">
+              {state?.live?.enabled
+                ? "LIVE ENABLED · APPROVAL REQUIRED"
+                : "PAPER MODE"}
+            </span>
             <button
               className={state?.kill ? "danger active" : "danger"}
               disabled={!state || busy}
@@ -566,12 +637,48 @@ export default function App() {
                     </button>
                   </div>
                   <p>
-                    Baseline agents scan every 30 seconds. Eligible entries may
-                    fill automatically after independent risk checks. Paper
-                    exits monitor 2% stop and 4% target levels every market
-                    refresh. Fresh quotes and risk checks are still required;
-                    fills can slip beyond these reference levels.
+                    Agents scan every 30 seconds. By default, bot proposals wait
+                    for your approval. Your manual tickets receive team review
+                    and always require your confirmation. Paper exits monitor 2%
+                    stop and 4% target levels every market refresh. Fresh quotes
+                    and risk checks are still required; fills can slip beyond
+                    these reference levels.
                   </p>
+                </section>
+                <section className="panel">
+                  <h2>Trade alongside your team</h2>
+                  <label>
+                    Bot entry approval policy
+                    <select
+                      aria-label="Bot entry approval policy"
+                      disabled={!state || busy}
+                      value={state?.approval_policy || "human"}
+                      onChange={(e) =>
+                        void action("/approval-policy", {
+                          policy: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="human">
+                        Ask me before every bot paper entry
+                      </option>
+                      <option value="automatic_paper">
+                        Allow risk-approved automatic paper entries
+                      </option>
+                    </select>
+                  </label>
+                  <p>
+                    Team opinions are advisory. The Risk Officer can block an
+                    order; a bot cannot override your approval or risk limits.
+                    Automatic protection may close owned paper positions at
+                    stop/target levels. Live orders remain locked.
+                  </p>
+                  <button
+                    className="ghost"
+                    onClick={() => setSection("Trade Proposals")}
+                  >
+                    Review team proposals ({pending.length})
+                  </button>
                 </section>
                 <Positions
                   positions={state?.positions || []}
@@ -668,22 +775,13 @@ export default function App() {
               </>
             )}
             {section === "Live Trading" && (
-              <section className="panel ticket">
-                <span className="pill">ACTIVATION LOCKED</span>
-                <h2>Real capital requires real verification.</h2>
-                <p>
-                  Coinbase Advanced Trade order routing is not implemented in
-                  this build. No live buy, sell, or automatic submission is
-                  possible. Paper and live funds are never mixed.
-                </p>
-                <p>
-                  Before release: secure credential storage, authenticated
-                  previews, minimum sizes, explicit single-order approvals,
-                  unknown-state reconciliation, partial fills, and protective
-                  exit handling must pass mocked and native integration tests.
-                </p>
-                <button disabled>Live trading unavailable</button>
-              </section>
+              <CoinbasePanel
+                connection={state?.coinbase_connection}
+                live={state?.live}
+                action={action}
+                busy={busy}
+                pending={pending}
+              />
             )}
             {section === "Bot Leaderboard" && (
               <>
@@ -846,7 +944,7 @@ export default function App() {
                     "$25 starting paper capital",
                     "$5 maximum entry, including fees",
                     "5 maximum open positions",
-                    "2% daily realized loss entry cutoff",
+                    "2% realized + unrealized loss entry cutoff",
                     "90-second quote and proposal freshness",
                     "0.5% maximum quoted spread",
                     "Duplicate proposal execution rejected",
@@ -891,7 +989,11 @@ export default function App() {
             <span className="dot" />{" "}
             {state ? "LOCAL ENGINE CONNECTED" : "ENGINE OFFLINE"}
           </span>
-          <span>SIMULATION ONLY · LIVE ORDERS LOCKED</span>
+          <span>
+            {state?.live?.enabled
+              ? "LIVE ENABLED · PER-ORDER HUMAN APPROVAL"
+              : "PAPER MODE · LIVE DISABLED"}
+          </span>
           <span>NIGHTSHIFT v0.1</span>
         </footer>
       </main>

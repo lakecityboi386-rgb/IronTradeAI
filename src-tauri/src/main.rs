@@ -10,7 +10,7 @@ fn main() {
         let data = app.path().app_data_dir()?;
         std::fs::create_dir_all(&data)?;
         let exe = std::env::current_exe()?.parent().ok_or("Missing executable directory")?.join("nightshift-engine.exe");
-        // The sidecar only serves paper operations on loopback; no credentials or live orders.
+        // Loopback engine; live activation resets on restart and credentials use Windows DPAPI.
         let child = std::process::Command::new(exe)
             .env("IRONTRADE_DATA_DIR", data)
             .spawn()?;
@@ -22,8 +22,10 @@ fn main() {
         #[cfg(not(debug_assertions))]
         if let tauri::RunEvent::Exit = _event {
             if let Some(state) = _handle.try_state::<EngineProcess>() {
-                if let Ok(mut guard) = state.0.lock() {
-                    if let Some(mut child) = guard.take() { let _ = child.kill(); let _ = child.wait(); }
+                let child = state.0.lock().ok().and_then(|mut guard| guard.take());
+                if let Some(mut child) = child {
+                    let _ = child.kill();
+                    let _ = child.wait();
                 }
             }
         }
