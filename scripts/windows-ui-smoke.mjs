@@ -40,6 +40,7 @@ try {
   // Do not send Browser.close to the embedded WebView. The PowerShell harness closes the app normally.
   process.exit(0);
 } catch (error) {
+  console.error('::error title=Native WebView smoke::' + String(error.message).replace(/%/g,'%25').replace(/\r?\n/g,'%0A'));
   console.error(error);
   process.exit(1);
 }

@@ -3,6 +3,7 @@
 import json
 import os
 import secrets
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -209,11 +210,30 @@ def worker():
         time.sleep(30)
 
 
-if __name__ == "__main__":
+def main():
     threading.Thread(target=account_link.restore, daemon=True).start()
     threading.Thread(target=worker, daemon=True).start()
+    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
+    if os.environ.get("NIGHTSHIFT_MANAGED_STDIN") == "1":
+
+        def parent_connection():
+            # The desktop owns this pipe. EOF means its window is closing.
+            # Shut down Python normally so the one-file bootloader can clean up.
+            try:
+                sys.stdin.buffer.read()
+            finally:
+                server.shutdown()
+
+        threading.Thread(target=parent_connection, daemon=True).start()
     print(
-        "NightShift paper engine listening on 127.0.0.1:8765; live orders locked",
+        "NightShift engine listening on 127.0.0.1:8765; live disabled at startup",
         flush=True,
     )
-    ThreadingHTTPServer(("127.0.0.1", 8765), Handler).serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()

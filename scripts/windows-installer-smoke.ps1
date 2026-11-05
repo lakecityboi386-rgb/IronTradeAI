@@ -3,6 +3,7 @@ $installer = Get-ChildItem 'src-tauri/target/x86_64-pc-windows-msvc/release/bund
 if (-not $installer) { throw 'Installer not found' }
 $installDirectory = Join-Path $env:RUNNER_TEMP 'NightShift-Installed-Smoke'
 $process = $null
+$stage = 'installer'
 $previousDebugArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
 try {
   if (Get-NetTCPConnection -State Listen -LocalPort 8765 -ErrorAction SilentlyContinue) { throw 'Engine port already in use; refusing to attach to another process' }
@@ -12,6 +13,7 @@ try {
   if (-not (Test-Path $executable)) { throw 'Installed native application missing' }
   # Only this CI process uses WebView debugging. The shipped app never enables it.
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+  $stage = 'installed-engine-readiness'
   $process = Start-Process -FilePath $executable -PassThru
   $ready = $false
   for ($attempt=0; $attempt -lt 90; $attempt++) {
@@ -29,9 +31,11 @@ try {
     }
   }
   if (-not $ready) { throw 'Installed engine readiness failed' }
+  $stage = 'native-webview'
   node scripts/windows-ui-smoke.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Native frontend smoke checks failed' }
   # Close the native window normally so the app must clean up its own engine child.
+  $stage = 'process-cleanup'
   $process.Refresh()
   if (-not $process.CloseMainWindow()) { throw 'Could not close installed native window normally' }
   if (-not $process.WaitForExit(20000)) { throw 'Native application did not exit cleanly' }
@@ -41,6 +45,26 @@ try {
   }
   if (Get-NetTCPConnection -State Listen -LocalPort 8765 -ErrorAction SilentlyContinue) { throw 'Engine child remained after application exit' }
   Write-Host 'Installer, installed app, native frontend and process cleanup verified; no live orders submitted.'
+} catch {
+  $message = "Stage $stage failed: $($_.Exception.Message)"
+  Write-Host "::error title=Windows installed app::$message"
+  New-Item -ItemType Directory -Force artifacts | Out-Null
+  $message | Set-Content artifacts/windows-smoke-error.txt
+  if (-not (Get-NetTCPConnection -State Listen -LocalPort 8765 -ErrorAction SilentlyContinue)) {
+    $engineExecutable = Join-Path $installDirectory 'nightshift-engine.exe'
+    if (Test-Path $engineExecutable) {
+      $env:IRONTRADE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'NightShift-Frozen-Diagnostic'
+      $diagnostic = Start-Process -FilePath $engineExecutable -PassThru -RedirectStandardOutput artifacts/frozen-engine-stdout.txt -RedirectStandardError artifacts/frozen-engine-stderr.txt
+      Start-Sleep -Seconds 3
+      if ($diagnostic.HasExited) {
+        $detail = (Get-Content artifacts/frozen-engine-stderr.txt -Tail 12 -ErrorAction SilentlyContinue) -join ' | '
+        Write-Host "::error title=Packaged engine startup::$detail"
+      } else {
+        Write-Host '::error title=Packaged engine startup::Engine launches directly; inspect desktop startup path or readiness contract.'
+      }
+    }
+  }
+  throw
 } finally {
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousDebugArguments
   if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }

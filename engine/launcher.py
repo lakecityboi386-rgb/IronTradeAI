@@ -1,6 +1,6 @@
-"""Entry point for the packaged Python sidecar."""
+"""Entry point for the packaged local trading engine."""
 
-import runpy
+from engine.server import main
 
 if __name__ == "__main__":
-    runpy.run_module("engine.server", run_name="__main__")
+    main()
