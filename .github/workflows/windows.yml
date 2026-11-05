@@ -1,0 +1,38 @@
+name: Windows desktop build
+on:
+  push:
+    branches: [main, work]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: python -m unittest discover -s tests -v
+      - run: npm run build
+      - run: python -m pip install pyinstaller==6.16.0
+      - name: Bundle local paper engine
+        shell: pwsh
+        run: |
+          python -m PyInstaller --onefile --name nightshift-engine --paths . --hidden-import engine.server --hidden-import engine.core engine/launcher.py
+          New-Item -ItemType Directory -Force src-tauri/binaries
+          Copy-Item dist/nightshift-engine.exe src-tauri/binaries/nightshift-engine-x86_64-pc-windows-msvc.exe
+      - name: Build Windows NSIS installer
+        run: npm run tauri -- build --target x86_64-pc-windows-msvc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NightShift-Windows-unsigned
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error

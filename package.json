@@ -1,0 +1,32 @@
+{
+  "name": "irontrade-nightshift",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc && vite build",
+    "tauri": "tauri",
+    "test": "python -m unittest discover -s tests -v",
+    "test:browser": "playwright test",
+    "engine": "python -m engine.server"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.8.0",
+    "vite": "^6.0.0"
+  }
+}

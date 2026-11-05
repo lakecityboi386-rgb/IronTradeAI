@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.sqlite3*
+.env
+src-tauri/target/
+*.log
+.runtime/
+playwright-report/
+test-results/
+src-tauri/binaries/
+*.spec
+build/
