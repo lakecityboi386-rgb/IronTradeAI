@@ -1,6 +1,6 @@
 # IronTrade AI — NightShift
 
-React / Three.js office, eight selectable animated seated agents, a Tauri v2 Windows shell, and Python / SQLite trading services. Paper trading and human-approved Coinbase execution use separate ledgers. **This remains a development build: the Windows installer, native credential storage and authenticated broker integration have not been verified on a Windows machine. Do not treat mocked tests as verification of real-money execution.**
+React / Three.js office, eight selectable animated seated agents, a Tauri v2 Windows shell, and Python / SQLite trading services. Paper trading and human-approved Coinbase execution use separate ledgers. **The Windows installer, native user-bound encryption, installed UI and engine cleanup passed Windows CI. This remains a development build: authenticated Coinbase execution has only been tested with mocked broker responses. No real orders were submitted.**
 
 ## Run the development application
 
@@ -86,11 +86,11 @@ npm run build
 npm run test:browser
 ```
 
-Set `CHROMIUM_PATH` for another installed browser. All broker execution tests use mocks; browser live-order tests intercept account/order routes. They never send real orders. Two native DPAPI tests are skipped on Linux and run on the Windows CI runner. Screenshots are saved in ignored `test-results/`.
+Set `CHROMIUM_PATH` for another installed browser. All broker execution tests use mocks; browser live-order tests intercept account/order routes. They never send real orders. Two native DPAPI tests are skipped on Linux; both executed successfully in the Windows verification run. Screenshots are saved in ignored `test-results/`.
 
 ## Windows packaging
 
-`.github/workflows/windows.yml` runs native Windows tests, installs the SDK, bundles the Python engine with PyInstaller, builds Tauri and uploads an unsigned NSIS installer. It has **not** been executed or verified from this Linux workspace. Push the committed code and run the workflow, then verify the installed application on Windows before using credentials or funds.
+`.github/workflows/windows.yml` runs native Windows tests, installs the SDK, bundles the Python engine with PyInstaller, builds Tauri and uploads an unsigned NSIS installer. The [Windows verification run](https://github.com/lakecityboi386-rgb/IronTradeAI/actions/runs/42110068448) passed. It built and installed the NSIS package, verified the native release UI and rendered office, checked all eight agents and account-link controls, and confirmed engine cleanup. Download **NightShift-Windows-unsigned** from that run’s Artifacts section. See [VERIFICATION.md](VERIFICATION.md) for the exact tested source and archive digest. Verify your own read-only account connection before deliberately enabling real-money submission.
 
 Windows prerequisites: Node, Python, Rust MSVC, Microsoft C++ build tools and WebView2. Local PowerShell packaging commands:
 
@@ -108,4 +108,4 @@ Release launches and stops its bundled engine child. Live activation does not su
 
 ## Remaining work
 
-Production character assets, walking/discussion animation, richer office navigation, verified wallet/depth evidence, longer independent forward strategy validation, Ollama conversation, and native Windows/real authenticated broker verification remain outstanding. No real orders may be submitted during development or testing. Mocked safeguard tests do not establish production readiness or profitability.
+Production character assets, walking/discussion animation, richer office navigation, verified wallet/depth evidence, longer independent forward strategy validation, Ollama conversation, and real authenticated broker verification, code signing and longer native usage validation remain outstanding. Native Windows installation and UI smoke verification have passed. No real orders may be submitted during development or testing. Mocked safeguard tests do not establish production readiness or profitability.
