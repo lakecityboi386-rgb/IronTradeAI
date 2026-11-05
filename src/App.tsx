@@ -507,7 +507,8 @@ export default function App() {
                 <p>
                   Risk Officer: every entry is rechecked at execution. Wallet
                   Tracker: no verified on-chain feed; abstaining. Execution
-                  Specialist: live routing locked.
+                  Specialist: live orders require separate activation and your
+                  individual approval.
                 </p>
                 <div className="grid">{pending.map(proposalCard)}</div>
               </section>
@@ -671,7 +672,8 @@ export default function App() {
                     Team opinions are advisory. The Risk Officer can block an
                     order; a bot cannot override your approval or risk limits.
                     Automatic protection may close owned paper positions at
-                    stop/target levels. Live orders remain locked.
+                    stop/target levels. Live orders use a separate activation
+                    and per-order confirmation workflow.
                   </p>
                   <button
                     className="ghost"
@@ -718,8 +720,8 @@ export default function App() {
                   <span className="eyebrow">PAPER ORDER TICKET</span>
                   <h2>Make a deliberate move.</h2>
                   <p>
-                    Available cash {money(state?.cash)} · live buy and sell are
-                    locked
+                    Available paper cash {money(state?.cash)} · use Live Trading
+                    for Coinbase orders.
                   </p>
                   <label>
                     Spot asset
@@ -957,8 +959,8 @@ export default function App() {
                   Emergency stop does not liquidate positions. Full-position
                   paper exits require a fresh quote and explicit confirmation.
                   Paper stops are sampled every 30 seconds, require valid
-                  quotes, and can slip beyond their reference levels. Live
-                  trading remains locked.
+                  quotes, and can slip beyond their reference levels. Every live
+                  order requires individual human approval.
                 </p>
               </section>
             )}
@@ -971,9 +973,11 @@ export default function App() {
                   IRONTRADE_DATA_DIR to choose a writable data directory.
                 </p>
                 <p>
-                  Public REST market feed: api.exchange.coinbase.com. No API
-                  credentials are requested or stored. Ollama and authenticated
-                  Coinbase trading are not enabled.
+                  Public market feed: api.exchange.coinbase.com. The Windows
+                  desktop app links Coinbase accounts using user-bound encrypted
+                  storage. This cloud browser does not accept private keys. Live
+                  orders require separate activation and individual
+                  confirmation. Ollama chat is not enabled.
                 </p>
                 <p>
                   Office assets are original procedural geometry. Current

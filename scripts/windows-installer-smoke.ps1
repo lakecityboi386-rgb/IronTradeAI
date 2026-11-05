@@ -4,15 +4,12 @@ if (-not $installer) { throw 'Installer not found' }
 $installDirectory = Join-Path $env:RUNNER_TEMP 'NightShift-Installed-Smoke'
 $process = $null
 $stage = 'installer'
-$previousDebugArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
 try {
   if (Get-NetTCPConnection -State Listen -LocalPort 8765 -ErrorAction SilentlyContinue) { throw 'Engine port already in use; refusing to attach to another process' }
   $install = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDirectory") -PassThru -Wait
   if ($install.ExitCode -ne 0) { throw "Installer failed with exit code $($install.ExitCode)" }
   $executable = Join-Path $installDirectory 'irontrade-nightshift.exe'
   if (-not (Test-Path $executable)) { throw 'Installed native application missing' }
-  # Only this CI process uses WebView debugging. The shipped app never enables it.
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
   $stage = 'installed-engine-readiness'
   $process = Start-Process -FilePath $executable -PassThru
   $ready = $false
@@ -32,7 +29,7 @@ try {
   }
   if (-not $ready) { throw 'Installed engine readiness failed' }
   $stage = 'native-webview'
-  node scripts/windows-ui-smoke.mjs
+  powershell.exe -NoProfile -File scripts/windows-uia-smoke.ps1 -ApplicationProcessId $process.Id
   if ($LASTEXITCODE -ne 0) { throw 'Native frontend smoke checks failed' }
   # Close the native window normally so the app must clean up its own engine child.
   $stage = 'process-cleanup'
@@ -66,7 +63,6 @@ try {
   }
   throw
 } finally {
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousDebugArguments
   if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
   # Clean up only binaries installed by this isolated CI smoke run.
   Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($installDirectory, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
