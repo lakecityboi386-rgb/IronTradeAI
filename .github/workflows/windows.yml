@@ -1,7 +1,7 @@
 name: Windows desktop build
 on:
   push:
-    branches: [main, work]
+    branches: [main, work, "codex/**"]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -31,8 +31,17 @@ jobs:
           Copy-Item dist/nightshift-engine.exe src-tauri/binaries/nightshift-engine-x86_64-pc-windows-msvc.exe
       - name: Build Windows NSIS installer
         run: npm run tauri -- build --target x86_64-pc-windows-msvc
+      - name: Install and smoke-test native Windows application
+        shell: pwsh
+        run: ./scripts/windows-installer-smoke.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: NightShift-Windows-unsigned
           path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: NightShift-Windows-Smoke-Evidence
+          path: artifacts/
+          if-no-files-found: ignore
