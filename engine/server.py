@@ -7,6 +7,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from .core import Engine
+from .replay import compare
 
 ORIGINS = {'http://localhost:1420', 'http://127.0.0.1:1420', 'tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost'}
 TOKEN = secrets.token_urlsafe(32)
@@ -59,6 +60,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(data.get('approve'), bool):
                     raise ValueError('Explicit boolean decision required')
                 result = engine.decide(data['id'], data['approve'])
+            elif self.path == '/api/research':
+                with engine.lock:
+                    quote = engine.markets.get(data['product'])
+                    if not quote:
+                        raise ValueError('Verified historical candles unavailable')
+                    result = compare(data['bot'], list(quote['candles']))
             elif self.path == '/api/kill':
                 result = engine.set_kill(data['enabled'])
             elif self.path == '/api/auto':

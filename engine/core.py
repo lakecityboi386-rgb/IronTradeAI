@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import RLock
 from urllib.request import Request, urlopen
 from .evaluation import evaluate
+from .strategies import assess, VERSION
 
 BOTS = [
     ('Market Scout', 'Cross-market trend discovery'),
@@ -75,7 +76,7 @@ class Engine:
             try:
                 ticker = get('/products/' + product + '/ticker')
                 candles = get('/products/' + product + '/candles?granularity=300')
-                candles = sorted(candles, key=lambda c: c[0])[-100:]
+                candles = sorted(candles, key=lambda c: c[0])[-300:]
                 bid, ask = float(ticker['bid']), float(ticker['ask'])
                 if not (math.isfinite(bid) and math.isfinite(ask) and 0 < bid <= ask) or len(candles) < 30:
                     raise ValueError('Invalid quote or insufficient candles')
@@ -155,7 +156,7 @@ class Engine:
             checks = self.risk(product, value, side, position)
             proposal = {'id': str(uuid.uuid4()), 'bot': bot, 'product': product, 'side': side, 'amount': str(value),
                 'position_id': position_id, 'created': time.time(), 'checks': checks, 'mode': 'paper',
-                'strategy_version': 'baseline-1', 'indicators': q['indicators'] if q else {},
+                'strategy_version': VERSION, 'indicators': q['indicators'] if q else {},
                 'entry': q['ask' if side == 'buy' else 'bid'] if q else None,
                 'stop': q['ask'] * .98 if q and side == 'buy' else None,
                 'target': q['ask'] * 1.04 if q and side == 'buy' else None,
@@ -167,10 +168,8 @@ class Engine:
             return {**proposal, 'status': status}
 
     def reason(self, bot, quote):
-        if not quote:
-            return 'No fresh market evidence; abstain.'
-        i = quote['indicators']
-        return f"{bot}: RSI {i['rsi']:.1f}, EMA12 {i['ema12']:.2f}, EMA26 {i['ema26']:.2f}. Baseline signal; confidence uncalibrated. Fees may exceed expected edge."
+        signal = assess(bot, quote)
+        return signal['reason'] + ' Confidence uncalibrated; signal quality requires forward validation.'
 
     def decide(self, proposal_id, approve):
         with self.lock, self.db:
@@ -225,12 +224,13 @@ class Engine:
                 if bot in ('Wallet Tracker', 'Risk Officer', 'Execution Specialist'):
                     continue
                 for product, q in list(self.markets.items()):
-                    i = q['indicators']
-                    signal = i['rsi'] < 30 if bot == 'Mean Reversion Quant' else i['ema12'] > i['ema26'] and 45 < i['rsi'] < 68
-                    if not signal:
+                    signal = assess(bot, q)
+                    if signal['action'] != 'buy':
                         continue
                     pending = self.db.execute("SELECT body FROM proposals WHERE status='pending'").fetchall()
                     if any(json.loads(r[0])['bot'] == bot and json.loads(r[0])['product'] == product for r in pending):
+                        continue
+                    if self.db.execute('SELECT 1 FROM positions WHERE bot=? AND product=?', (bot, product)).fetchone():
                         continue
                     p = self.propose(bot, product, '5')
                     if p['status'] == 'pending':

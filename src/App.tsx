@@ -4,6 +4,7 @@ type Check = { name: string; passed: boolean };
 type Proposal = {
   id: string;
   bot: string;
+  strategy_version: string;
   product: string;
   side: string;
   amount: string;
@@ -143,6 +144,20 @@ function Chart({ market }: { market: Market }) {
   );
 }
 export default function App() {
+  const [research, setResearch] = useState<{
+    bot: string;
+    status: string;
+    training_candles: number;
+    holdout_candles: number;
+    assumptions: string;
+    results: Record<
+      string,
+      {
+        training: { trades: number; net: number };
+        holdout: { trades: number; net: number };
+      }
+    >;
+  } | null>(null);
   const [section, setSection] = useState(sections[0]),
     [selected, setSelected] = useState(0),
     [state, setState] = useState<State | null>(null),
@@ -204,7 +219,9 @@ export default function App() {
       <h3>
         {p.product} <span>{money(p.amount)}</span>
       </h3>
-      <p>{p.bot} · baseline-1</p>
+      <p>
+        {p.bot} · {p.strategy_version}
+      </p>
       <div className="numbers">
         <span>
           Entry <b>{money(p.entry)}</b>
@@ -708,6 +725,72 @@ export default function App() {
                     </span>
                   </div>
                 </section>
+                <section className="panel">
+                  <h2>Champion / challenger research</h2>
+                  <p>
+                    Uses verified {product} candles. Each candidate is fixed
+                    before holdout scoring. Limited samples do not prove
+                    profitability.
+                  </p>
+                  <label>
+                    Research market
+                    <select
+                      value={product}
+                      onChange={(e) => {
+                        setProduct(e.target.value);
+                        setResearch(null);
+                      }}
+                    >
+                      {["BTC-USD", "ETH-USD", "SOL-USD"].map((p) => (
+                        <option key={p}>{p}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="row">
+                    {[
+                      "Market Scout",
+                      "Technical Analyst",
+                      "Momentum Maverick",
+                      "Mean Reversion Quant",
+                    ].map((bot) => (
+                      <button
+                        className="ghost"
+                        key={bot}
+                        disabled={!state || busy}
+                        onClick={() =>
+                          void action("/research", { bot, product }).then(
+                            (r) => r && setResearch(r),
+                          )
+                        }
+                      >
+                        {bot}
+                      </button>
+                    ))}
+                  </div>
+                  {research && (
+                    <>
+                      <h3>{research.bot}</h3>
+                      <p>
+                        {research.status} Training: {research.training_candles}{" "}
+                        candles; holdout: {research.holdout_candles} candles.
+                      </p>
+                      <div className="numbers">
+                        {Object.entries(research.results).map(([name, r]) => (
+                          <span key={name}>
+                            {name}
+                            <b>
+                              {r.holdout.trades} holdout trades ·{" "}
+                              {money(r.holdout.net)} net
+                            </b>
+                            Training {r.training.trades} trades ·{" "}
+                            {money(r.training.net)}
+                          </span>
+                        ))}
+                      </div>
+                      <small>{research.assumptions}</small>
+                    </>
+                  )}
+                </section>
                 {names.map((name) => {
                   const trades =
                     state?.journal.filter(
@@ -724,8 +807,9 @@ export default function App() {
                   );
                 })}
                 <p className="muted">
-                  Champion/challenger promotion and time-ordered strategy
-                  validation are pending. No learned strategy is active.
+                  Champion/challenger replay uses a chronological holdout and
+                  next-observation fills. No learned strategy is active and
+                  research cannot bypass risk controls.
                 </p>
               </>
             )}

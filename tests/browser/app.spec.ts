@@ -73,3 +73,48 @@ test("kill switch persists and can be resumed", async ({ page }) => {
     page.getByRole("button", { name: "Emergency stop", exact: false }),
   ).toBeVisible();
 });
+
+test("research comparison displays holdout evidence without promotion controls", async ({
+  page,
+}) => {
+  // Explicit mocked research result: never shown in the actual application without this test route.
+  await page.route("**/api/research", (route) =>
+    route.fulfill({
+      json: {
+        bot: "Market Scout",
+        status: "Research comparison only. No promotion.",
+        training_candles: 210,
+        holdout_candles: 90,
+        assumptions: "Test fixture: fees and slippage included",
+        results: {
+          champion: {
+            training: { trades: 10, net: 1 },
+            holdout: { trades: 3, net: -0.2 },
+          },
+          challenger: {
+            training: { trades: 4, net: 0.2 },
+            holdout: { trades: 1, net: -0.1 },
+          },
+        },
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByText("LOCAL ENGINE CONNECTED", { exact: false }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Bot Leaderboard", exact: false })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Champion / challenger research" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Market Scout", exact: true }).click();
+  await expect(
+    page.getByText("3 holdout trades", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Research comparison only. No promotion.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /promote/i })).toHaveCount(0);
+});
